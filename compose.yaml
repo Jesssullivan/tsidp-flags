@@ -1,0 +1,4 @@
+# Entry point for local runs: `docker compose config` validates, `docker compose up idp` runs.
+# The probe runs on its own tailnet node (see README), so it has no service here.
+include:
+  - idp/compose.yaml
