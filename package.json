@@ -1,0 +1,12 @@
+{
+  "name": "tsidp-flags",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.13.1",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "check": "pnpm -r --if-present check"
+  }
+}
