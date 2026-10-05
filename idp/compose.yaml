@@ -1,0 +1,41 @@
+# tsidp, the Tailscale OIDC identity provider, pinned to a release tag.
+#
+# Pin: ghcr.io/tailscale/tsidp:v0.0.15 (tag v0.0.15, commit
+# 437cbaea19c9fa6451292aef1f0ce075b097e5d8). Bump deliberately; tsidp is < v1.0.0.
+#
+# - Flags are in argv, not env, so what runs is visible in the file.
+# - State lives in the named volume at /data (-dir). Without it the node
+#   re-registers on every restart and loses OIDC clients and sessions.
+# - The auth key is a FILE secret. It is read once into TS_AUTHKEY for the
+#   process by the shell wrapper below; it is never in this file, in .env, or
+#   in the process arguments. The key is only needed for first registration;
+#   after state exists you may remove the secret.
+# - TAILSCALE_USE_WIP_CODE=1 is required while tsidp is < v1.0.0 (tsnet/tsidp
+#   gate work-in-progress code behind it).
+# - Add -funnel only if a public relying party must reach /token and the JWKS
+#   (the ACL example grants the funnel node attribute to tag:flag-idp).
+services:
+  idp:
+    image: ghcr.io/tailscale/tsidp:v0.0.15
+    restart: unless-stopped
+    environment:
+      TAILSCALE_USE_WIP_CODE: "1"
+    volumes:
+      - idp-state:/data
+    secrets:
+      - ts_authkey
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        if [ -r /run/secrets/ts_authkey ]; then TS_AUTHKEY="$$(cat /run/secrets/ts_authkey)"; export TS_AUTHKEY; fi;
+        exec /tsidp-server -dir /data -hostname "$${IDP_HOSTNAME:-idp}" -port 443
+    # Tag the node at creation: the auth key itself must be created with
+    # tag:flag-idp so it is registered as that tag (see acl/policy.dhall).
+
+volumes:
+  idp-state:
+
+secrets:
+  ts_authkey:
+    file: ${TS_AUTHKEY_FILE:-./secrets/tsidp-authkey}

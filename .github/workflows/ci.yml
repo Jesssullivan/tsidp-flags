@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Install, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Unit tests (flags, kit)
+        run: |
+          pnpm --filter @tsidp-flags/flags test
+          pnpm --filter @tsidp-flags/kit test
+
+      - name: Probe unit tests
+        run: python3 -m unittest discover -s probe -p 'test_*.py'
+
+      - name: Build both apps
+        run: |
+          pnpm --filter @tsidp-flags/kit build
+          pnpm --filter @tsidp-flags/static build
+
+  secrets:
+    name: Secret and denylist scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # gitleaks-action lists the pull request commits through the API.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # DENYLIST is a repository secret (newline-separated tokens). The repo
+      # itself holds no real values; with no secret set the check reports that
+      # nothing was checked, and REQUIRE_DENYLIST=1 turns that into a failure.
+      - name: Denylist check
+        run: bash scripts/denylist-check.sh
+        env:
+          DENYLIST: ${{ secrets.DENYLIST }}
+          REQUIRE_DENYLIST: ${{ secrets.DENYLIST != '' && '1' || '0' }}
