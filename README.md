@@ -4,12 +4,11 @@ A reference stack for turning "who is this visitor, as far as my tailnet and my
 edge can tell" into boolean **flags** that a web app can render against, with
 explicit trust tiers and a fail-closed resolver.
 
-Private while it is being built; intended to go public when complete. Every
-name here is a placeholder (`example.ts.net`, `you@example.com`,
+Every name here is a placeholder (`example.ts.net`, `you@example.com`,
 `example.org`). `scripts/denylist-check.sh` fails CI if tokens from a private,
 untracked denylist appear anywhere.
 
-## Three signals, two trust tiers
+##  Tiers
 
 | Signal | How it arrives | Trust |
 | --- | --- | --- |
@@ -20,7 +19,6 @@ untracked denylist appear anywhere.
 | Cloudflare session probe | Browser-side check of an Access session | hint |
 | Override | Operator-set flag; `false` is a global off switch | verified |
 
-- **verified**: a server checked a signature, a trusted peer address or a session it issued. Safe for server-rendered gating and APIs.
 - **hint**: a browser-side observation. Fine for progressive enhancement on a static page, never for access control. `resolve()` caps probe sources at `hint` no matter what an adapter claims.
 
 ## Layout
