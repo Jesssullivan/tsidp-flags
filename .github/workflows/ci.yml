@@ -45,6 +45,10 @@ jobs:
     name: Secret and denylist scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # gitleaks-action lists the pull request commits through the API.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
