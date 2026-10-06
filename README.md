@@ -101,6 +101,9 @@ device path; a refused start exits 78. See [probe/README.md](probe/README.md).
 - On https the session cookie is `__Host-flags_session` (Secure, Path=/, no Domain); plain http keeps `flags_session`. Rotation: changing `SESSION_SECRET` signs everyone out, because old cookies stop verifying. Deploying the `__Host-` rename has the same effect once, because the old name is no longer read. Logout clears both names.
 - The kit's `/api/surface` serves the manifest to a static origin set by `STATIC_ORIGIN` (exact match, no credentials), so it reflects serve-header and Cloudflare Access signals, not the same-site OIDC cookie.
 
+Manifest contracts: Surface v1 is implemented; a production "items" shape is
+documented as **proposed** in [docs/contracts.md](docs/contracts.md).
+
 ## CI
 
 `.github/workflows/ci.yml`: install, vitest (flags, kit), probe unittest,
