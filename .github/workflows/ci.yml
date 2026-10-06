@@ -64,6 +64,38 @@ jobs:
           pnpm --filter @tsidp-flags/kit build
           pnpm --filter @tsidp-flags/static build
 
+  e2e:
+    name: Playwright (static app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @tsidp-flags/static exec playwright install --with-deps chromium
+
+      - name: Playwright test
+        run: pnpm --filter @tsidp-flags/static test:e2e
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report
+          path: apps/static/playwright-report
+          retention-days: 7
+
   secrets:
     name: Secret and denylist scan
     runs-on: ubuntu-latest

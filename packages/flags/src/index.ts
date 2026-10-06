@@ -164,3 +164,12 @@ export function parseSurface(value: unknown): Surface | null {
 	}
 	return { version: 1, flags, basis, status: v.status };
 }
+
+export {
+	CF_SESSION_PROBE_REQUEST,
+	CF_SESSION_PROBE_TIMEOUT_MS,
+	cfSessionProbe,
+	classifyCfSession,
+	type CfSessionProbeOptions,
+	type ProbeResponseLike
+} from './cf-session-probe';
