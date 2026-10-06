@@ -20,6 +20,7 @@ let Tsidp =
       , allowDCR : Optional Bool
       , users : Optional (List Text)
       , resources : Optional (List Text)
+      , taggedIdentity : Optional { subject : Text, email : Text, name : Text }
       }
 
 let tsidpEmpty
@@ -31,10 +32,12 @@ let tsidpEmpty
       , allowDCR = None Bool
       , users = None (List Text)
       , resources = None (List Text)
+      , taggedIdentity = None { subject : Text, email : Text, name : Text }
       }
 
 let Cap =
       < Probe : { cap : Text, flag : Text }
+      | ProbeUser : { cap : Text, flag : Text, user : Text }
       | Tsidp : Tsidp
       | Kubernetes : { impersonateGroups : List Text }
       | RjGateway : { role : Text, secrets : Optional (List Text) }
@@ -83,6 +86,17 @@ let renderTsidp
             # field Bool "allow_dcr" J.bool t.allowDCR
             # field (List Text) "users" J.strings t.users
             # field (List Text) "resources" J.strings t.resources
+            # field
+                { subject : Text, email : Text, name : Text }
+                "taggedIdentity"
+                ( \(i : { subject : Text, email : Text, name : Text }) ->
+                    J.object
+                      [ { mapKey = "subject", mapValue = J.string i.subject }
+                      , { mapKey = "email", mapValue = J.string i.email }
+                      , { mapKey = "name", mapValue = J.string i.name }
+                      ]
+                )
+                t.taggedIdentity
           )
 
 let renderCap
@@ -95,6 +109,17 @@ let renderCap
                 , mapValue =
                     J.array
                       [ J.object [ { mapKey = p.flag, mapValue = J.bool True } ]
+                      ]
+                }
+          , ProbeUser =
+              \(p : { cap : Text, flag : Text, user : Text }) ->
+                { mapKey = p.cap
+                , mapValue =
+                    J.array
+                      [ J.object
+                          [ { mapKey = p.flag, mapValue = J.bool True }
+                          , { mapKey = "user", mapValue = J.string p.user }
+                          ]
                       ]
                 }
           , Tsidp =

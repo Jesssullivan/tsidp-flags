@@ -92,9 +92,10 @@ exactly its one tag and no Funnel.
 
 ## CI
 
-`.github/workflows/ci.yml`: install, vitest (flags, kit), probe unittest, build
-both apps, gitleaks, denylist check (`DENYLIST` repository secret). ACL checks
-and the Playwright test run locally (`just acl-check`, `just test-e2e`).
+`.github/workflows/ci.yml`: install, vitest (flags, kit), probe unittest,
+`just acl-check` (dhall and dhall-json release binaries pinned by sha256), build
+both apps, gitleaks, denylist check (`DENYLIST` repository secret). The
+Playwright test runs locally (`just test-e2e`).
 
 ## Dependency hygiene
 
