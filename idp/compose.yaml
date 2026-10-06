@@ -33,8 +33,32 @@ services:
     # Tag the node at creation: the auth key itself must be created with
     # tag:flag-idp so it is registered as that tag (see acl/policy.dhall).
 
+  # Optional: tsidp at upstream 8fa860f plus the tagged-identity patch, built
+  # locally (idp/tagged/). Off unless the profile is selected:
+  #   docker compose --profile tagged-identity up --build idp-tagged
+  # Same flags, secret handling and state layout as `idp`, separate volume.
+  idp-tagged:
+    profiles: ["tagged-identity"]
+    build:
+      context: ./tagged
+    image: localhost/tsidp-flags/tsidp-tagged:8fa860f
+    restart: unless-stopped
+    environment:
+      TAILSCALE_USE_WIP_CODE: "1"
+    volumes:
+      - idp-tagged-state:/data
+    secrets:
+      - ts_authkey
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        if [ -r /run/secrets/ts_authkey ]; then TS_AUTHKEY="$$(cat /run/secrets/ts_authkey)"; export TS_AUTHKEY; fi;
+        exec /tsidp-server -dir /data -hostname "$${IDP_HOSTNAME:-idp}" -port 443
+
 volumes:
   idp-state:
+  idp-tagged-state:
 
 secrets:
   ts_authkey:

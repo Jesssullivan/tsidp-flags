@@ -1,0 +1,349 @@
+diff --git a/server/appcap.go b/server/appcap.go
+index f0275d9..e0b7846 100644
+--- a/server/appcap.go
++++ b/server/appcap.go
+@@ -27,6 +27,38 @@ type capRule struct {
+ 	// allow lists
+ 	AllowAdminUI bool `json:"allow_admin_ui"`
+ 	AllowDCR     bool `json:"allow_dcr"` // dynamic client registration
++
++	// TaggedIdentity supplies the subject, email and name for a tagged node,
++	// which has no user identity of its own. It is read only from the
++	// operator's grant (never from the caller) and is ignored for user-owned
++	// nodes. See taggedIdentityFor.
++	TaggedIdentity *taggedIdentity `json:"taggedIdentity,omitempty"`
++}
++
++// taggedIdentity is the identity a grant assigns to a tagged node.
++type taggedIdentity struct {
++	Subject string `json:"subject"`
++	Email   string `json:"email,omitempty"`
++	Name    string `json:"name,omitempty"`
++}
++
++// taggedIdentityFor returns the identity a grant assigns to the tagged caller
++// in who, or nil when no grant supplies a non-empty subject. A nil result
++// means the tagged node is refused, as upstream does without this option.
++func taggedIdentityFor(who *apitype.WhoIsResponse) *taggedIdentity {
++	if who == nil || who.Node == nil || !who.Node.IsTagged() {
++		return nil
++	}
++	rules, err := tailcfg.UnmarshalCapJSON[capRule](who.CapMap, tailcfg.PeerCapabilityTsIDP)
++	if err != nil {
++		return nil
++	}
++	for _, rule := range rules {
++		if id := rule.TaggedIdentity; id != nil && id.Subject != "" {
++			return id
++		}
++	}
++	return nil
+ }
+ 
+ // AccessGrantedRules holds the access rules from granted Application Capabilities.
+diff --git a/server/authorize.go b/server/authorize.go
+index 3cd04c2..fa34caa 100644
+--- a/server/authorize.go
++++ b/server/authorize.go
+@@ -105,7 +105,7 @@ func (s *IDPServer) serveAuthorize(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
+-	if who.Node.View().IsTagged() {
++	if who.Node.View().IsTagged() && taggedIdentityFor(who) == nil {
+ 		redirectAuthError(w, r, redirectURI, ecAccessDenied, "tagged node doesn't have a user identity", state)
+ 		return
+ 	}
+diff --git a/server/tagged_identity_test.go b/server/tagged_identity_test.go
+new file mode 100644
+index 0000000..a7396ba
+--- /dev/null
++++ b/server/tagged_identity_test.go
+@@ -0,0 +1,156 @@
++// SPDX-License-Identifier: BSD-3-Clause
++
++package server
++
++import (
++	"encoding/base64"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"net/url"
++	"strings"
++	"testing"
++	"time"
++
++	"tailscale.com/client/tailscale/apitype"
++	"tailscale.com/tailcfg"
++)
++
++func taggedWho(t *testing.T, rules ...capRule) *apitype.WhoIsResponse {
++	t.Helper()
++	var raws []tailcfg.RawMessage
++	for _, r := range rules {
++		raws = append(raws, mustMarshalJSON(t, r))
++	}
++	return &apitype.WhoIsResponse{
++		Node:        &tailcfg.Node{ID: 7, Name: "laptop.example.ts.net.", User: 99, Tags: []string{"tag:probe"}},
++		UserProfile: &tailcfg.UserProfile{LoginName: "tagged-devices"},
++		CapMap:      tailcfg.PeerCapMap{tailcfg.PeerCapabilityTsIDP: raws},
++	}
++}
++
++func TestTaggedIdentityFor(t *testing.T) {
++	id := &taggedIdentity{Subject: "device-operator", Email: "op@example.com"}
++	user := &apitype.WhoIsResponse{Node: &tailcfg.Node{User: 1}, CapMap: tailcfg.PeerCapMap{
++		tailcfg.PeerCapabilityTsIDP: {mustMarshalJSON(t, capRule{TaggedIdentity: id})},
++	}}
++	tests := []struct {
++		name string
++		who  *apitype.WhoIsResponse
++		want *taggedIdentity
++	}{
++		{"nil who", nil, nil},
++		{"user-owned node ignores the grant", user, nil},
++		{"tagged without grant", taggedWho(t), nil},
++		{"tagged with other rule only", taggedWho(t, capRule{ExtraClaims: map[string]any{"a": "b"}}), nil},
++		{"tagged with empty subject", taggedWho(t, capRule{TaggedIdentity: &taggedIdentity{Email: "x@example.com"}}), nil},
++		{"tagged with identity", taggedWho(t, capRule{ExtraClaims: map[string]any{"a": "b"}}, capRule{TaggedIdentity: id}), id},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := taggedIdentityFor(tt.who)
++			if (got == nil) != (tt.want == nil) || (got != nil && *got != *tt.want) {
++				t.Fatalf("got %+v want %+v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestTaggedAuthorize(t *testing.T) {
++	for _, tt := range []struct {
++		name    string
++		who     *apitype.WhoIsResponse
++		wantErr bool
++	}{
++		{"refused without identity", taggedWho(t), true},
++		{"allowed with identity", taggedWho(t, capRule{TaggedIdentity: &taggedIdentity{Subject: "s"}}), false},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			srv := setupTestServer(t, newTestWhoIsClient(t, tt.who, false))
++			srv.funnelClients["c"] = &FunnelClient{ID: "c", Secret: "s", Name: "c", RedirectURIs: []string{"https://rp.example.com/cb"}}
++			q := url.Values{"client_id": {"c"}, "redirect_uri": {"https://rp.example.com/cb"}, "state": {"st"}}
++			req := httptest.NewRequest("GET", "/authorize?"+q.Encode(), nil)
++			req.RemoteAddr = "127.0.0.1:12345"
++			rr := httptest.NewRecorder()
++			srv.serveAuthorize(rr, req)
++			if rr.Code != http.StatusFound {
++				t.Fatalf("code %d: %s", rr.Code, rr.Body.String())
++			}
++			loc, _ := url.Parse(rr.Header().Get("Location"))
++			if tt.wantErr != (loc.Query().Get("error") == ecAccessDenied) {
++				t.Fatalf("unexpected redirect %s", loc)
++			}
++			if !tt.wantErr && loc.Query().Get("code") == "" {
++				t.Fatal("no code issued")
++			}
++		})
++	}
++}
++
++func jwtClaims(t *testing.T, tok string) map[string]any {
++	t.Helper()
++	parts := strings.Split(tok, ".")
++	if len(parts) != 3 {
++		t.Fatalf("not a jwt")
++	}
++	b, err := base64.RawURLEncoding.DecodeString(parts[1])
++	if err != nil {
++		t.Fatal(err)
++	}
++	m := map[string]any{}
++	if err := json.Unmarshal(b, &m); err != nil {
++		t.Fatal(err)
++	}
++	return m
++}
++
++func TestTaggedIssueTokensAndUserInfo(t *testing.T) {
++	id := &taggedIdentity{Subject: "device-operator", Email: "op@example.com", Name: "Operator"}
++	who := taggedWho(t, capRule{
++		IncludeInUserInfo: true,
++		ExtraClaims:       map[string]any{"flag_member": "true"},
++		TaggedIdentity:    id,
++	})
++	srv := setupTestServer(t, newTestWhoIsClient(t, who, false))
++	ar := &AuthRequest{RemoteUser: who, ClientID: "test-client", Scopes: []string{"openid", "email", "profile"}, Nonce: "n"}
++	rr := httptest.NewRecorder()
++	srv.issueTokens(rr, httptest.NewRequest("POST", "/token", nil), ar)
++	if rr.Code != http.StatusOK {
++		t.Fatalf("issueTokens %d: %s", rr.Code, rr.Body.String())
++	}
++	var resp struct {
++		IDToken     string `json:"id_token"`
++		AccessToken string `json:"access_token"`
++	}
++	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
++		t.Fatal(err)
++	}
++	c := jwtClaims(t, resp.IDToken)
++	if c["sub"] != "device-operator" || c["email"] != "op@example.com" || c["preferred_username"] != "op" || c["flag_member"] != "true" {
++		t.Fatalf("claims: %v", c)
++	}
++
++	srv.mu.Lock()
++	srv.accessToken[resp.AccessToken].ValidTill = time.Now().Add(time.Hour)
++	srv.mu.Unlock()
++	req := httptest.NewRequest("GET", "/userinfo", nil)
++	req.Header.Set("Authorization", "Bearer "+resp.AccessToken)
++	rr = httptest.NewRecorder()
++	srv.serveUserInfo(rr, req)
++	if rr.Code != http.StatusOK {
++		t.Fatalf("userinfo %d: %s", rr.Code, rr.Body.String())
++	}
++	u := map[string]any{}
++	_ = json.Unmarshal(rr.Body.Bytes(), &u)
++	if u["sub"] != "device-operator" || u["email"] != "op@example.com" || u["flag_member"] != "true" {
++		t.Fatalf("userinfo: %v", u)
++	}
++
++	// Without a grant identity the token endpoint still refuses.
++	bare := taggedWho(t)
++	rr = httptest.NewRecorder()
++	srv.issueTokens(rr, httptest.NewRequest("POST", "/token", nil), &AuthRequest{RemoteUser: bare, ClientID: "test-client"})
++	if rr.Code != http.StatusBadRequest {
++		t.Fatalf("bare tagged token: %d", rr.Code)
++	}
++}
+diff --git a/server/token.go b/server/token.go
+index ea1516f..bd9012b 100644
+--- a/server/token.go
++++ b/server/token.go
+@@ -511,9 +511,12 @@ func (s *IDPServer) issueTokens(w http.ResponseWriter, r *http.Request, ar *Auth
+ 	who := ar.RemoteUser
+ 
+ 	n := who.Node.View()
++	var tagID *taggedIdentity
+ 	if n.IsTagged() {
+-		writeHTTPError(w, r, http.StatusBadRequest, ecInvalidRequest, "tagged nodes not supported", nil)
+-		return
++		if tagID = taggedIdentityFor(who); tagID == nil {
++			writeHTTPError(w, r, http.StatusBadRequest, ecInvalidRequest, "tagged nodes not supported", nil)
++			return
++		}
+ 	}
+ 
+ 	// Build audience claim - for exchanged tokens use audiences, otherwise use clientID + resources
+@@ -549,7 +552,7 @@ func (s *IDPServer) issueTokens(w http.ResponseWriter, r *http.Request, ar *Auth
+ 			NotBefore: jwt.NewNumericDate(nbf),
+ 			ID:        jti,
+ 			Issuer:    s.serverURL,
+-			Subject:   n.User().String(),
++			Subject:   subjectFor(n.User().String(), tagID),
+ 		},
+ 		Nonce:     ar.Nonce,
+ 		Key:       n.Key(),
+@@ -564,12 +567,22 @@ func (s *IDPServer) issueTokens(w http.ResponseWriter, r *http.Request, ar *Auth
+ 	for _, scope := range ar.Scopes {
+ 		switch scope {
+ 		case "email":
+-			tsClaims.Email = s.realishEmail(who.UserProfile.LoginName)
++			if tagID != nil {
++				tsClaims.Email = tagID.Email
++			} else {
++				tsClaims.Email = s.realishEmail(who.UserProfile.LoginName)
++			}
+ 		case "profile":
+-			if username, _, ok := strings.Cut(who.UserProfile.LoginName, "@"); ok {
+-				tsClaims.PreferredUsername = username
++			if tagID != nil {
++				if username, _, ok := strings.Cut(tagID.Email, "@"); ok {
++					tsClaims.PreferredUsername = username
++				}
++			} else {
++				if username, _, ok := strings.Cut(who.UserProfile.LoginName, "@"); ok {
++					tsClaims.PreferredUsername = username
++				}
++				tsClaims.Picture = who.UserProfile.ProfilePicURL
+ 			}
+-			tsClaims.Picture = who.UserProfile.ProfilePicURL
+ 		}
+ 	}
+ 
+@@ -621,7 +634,7 @@ func (s *IDPServer) issueTokens(w http.ResponseWriter, r *http.Request, ar *Auth
+ 	s.mu.Unlock()
+ 
+ 	slog.Info("token issued",
+-		slog.String("for", who.UserProfile.LoginName),
++		slog.String("for", loginForLog(who, tagID)),
+ 		slog.String("uid", n.User().String()),
+ 		slog.String("client_id", ar.ClientID),
+ 		slog.String("redirect_uri", ar.RedirectURI),
+@@ -924,3 +937,20 @@ func (ar *AuthRequest) allowRelyingParty(r *http.Request) (int, error) {
+ 	}
+ 	return http.StatusOK, nil
+ }
++
++// subjectFor returns the OIDC subject: the grant-assigned subject for a tagged
++// node, otherwise the node's user id.
++func subjectFor(userID string, tagID *taggedIdentity) string {
++	if tagID != nil {
++		return tagID.Subject
++	}
++	return userID
++}
++
++// loginForLog names the caller for the token-issued log line.
++func loginForLog(who *apitype.WhoIsResponse, tagID *taggedIdentity) string {
++	if tagID != nil {
++		return "tagged:" + tagID.Subject
++	}
++	return who.UserProfile.LoginName
++}
+diff --git a/server/userinfo.go b/server/userinfo.go
+index c0a071c..f773e75 100644
+--- a/server/userinfo.go
++++ b/server/userinfo.go
+@@ -77,19 +77,28 @@ func (s *IDPServer) serveUserInfo(w http.ResponseWriter, r *http.Request) {
+ 
+ 	ui := userInfo{}
+ 	if ar.RemoteUser.Node.IsTagged() {
+-		writeHTTPError(w, r, http.StatusBadRequest, ecInvalidRequest, "tagged nodes not supported", nil)
+-		return
+-	}
+-
+-	// Sub is always included (openid scope is mandatory)
+-	ui.Sub = ar.RemoteUser.Node.User.String()
+-
+-	// Always include user profile information if available
+-	ui.Name = ar.RemoteUser.UserProfile.DisplayName
+-	ui.Picture = ar.RemoteUser.UserProfile.ProfilePicURL
+-	ui.Email = s.realishEmail(ar.RemoteUser.UserProfile.LoginName)
+-	if username, _, ok := strings.Cut(ar.RemoteUser.UserProfile.LoginName, "@"); ok {
+-		ui.Username = username
++		tagID := taggedIdentityFor(ar.RemoteUser)
++		if tagID == nil {
++			writeHTTPError(w, r, http.StatusBadRequest, ecInvalidRequest, "tagged nodes not supported", nil)
++			return
++		}
++		ui.Sub = tagID.Subject
++		ui.Name = tagID.Name
++		ui.Email = tagID.Email
++		if username, _, ok := strings.Cut(tagID.Email, "@"); ok {
++			ui.Username = username
++		}
++	} else {
++		// Sub is always included (openid scope is mandatory)
++		ui.Sub = ar.RemoteUser.Node.User.String()
++
++		// Always include user profile information if available
++		ui.Name = ar.RemoteUser.UserProfile.DisplayName
++		ui.Picture = ar.RemoteUser.UserProfile.ProfilePicURL
++		ui.Email = s.realishEmail(ar.RemoteUser.UserProfile.LoginName)
++		if username, _, ok := strings.Cut(ar.RemoteUser.UserProfile.LoginName, "@"); ok {
++			ui.Username = username
++		}
+ 	}
+ 
+ 	rules, err := tailcfg.UnmarshalCapJSON[capRule](ar.RemoteUser.CapMap, tailcfg.PeerCapabilityTsIDP)
