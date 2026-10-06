@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { jwtVerify, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import type { OidcConfig } from './config';
 
 type Fetch = typeof fetch;
@@ -37,6 +37,51 @@ export async function discover(issuer: string, fetchFn: Fetch = fetch): Promise<
 		throw new Error('oidc discovery document mismatch');
 	}
 	return meta as ProviderMeta;
+}
+
+/** How long a discovery document is reused before it is fetched again. */
+export const DISCOVERY_TTL_MS = 10 * 60 * 1000;
+
+const discoveryCache = new Map<string, { at: number; meta: Promise<ProviderMeta> }>();
+const jwksCache = new Map<string, JWTVerifyGetKey>();
+
+/**
+ * Module-level discovery cache: one fetch per issuer per TTL, shared by login
+ * and callback. A failed fetch is not cached, so the next request retries.
+ */
+export function discoverCached(
+	issuer: string,
+	fetchFn: Fetch = fetch,
+	now: number = Date.now()
+): Promise<ProviderMeta> {
+	const hit = discoveryCache.get(issuer);
+	if (hit && now - hit.at < DISCOVERY_TTL_MS) return hit.meta;
+	const meta = discover(issuer, fetchFn);
+	discoveryCache.set(issuer, { at: now, meta });
+	meta.catch(() => {
+		if (discoveryCache.get(issuer)?.meta === meta) discoveryCache.delete(issuer);
+	});
+	return meta;
+}
+
+/**
+ * Module-level remote JWKS per jwks_uri. jose caches keys and rate-limits
+ * refetches inside one JWKS object, so reusing it keeps that cache warm
+ * instead of fetching the key set on every sign-in.
+ */
+export function remoteJwks(uri: string): JWTVerifyGetKey {
+	let keys = jwksCache.get(uri);
+	if (!keys) {
+		keys = createRemoteJWKSet(new URL(uri));
+		jwksCache.set(uri, keys);
+	}
+	return keys;
+}
+
+/** Test hook: forget cached discovery documents and key sets. */
+export function clearOidcCaches(): void {
+	discoveryCache.clear();
+	jwksCache.clear();
 }
 
 export function authorizeUrl(

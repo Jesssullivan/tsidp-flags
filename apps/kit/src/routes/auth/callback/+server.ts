@@ -1,8 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
-import { createRemoteJWKSet } from 'jose';
 import { getConfig } from '$lib/server/runtime';
-import { discover, exchangeCode, verifyIdToken } from '$lib/server/oidc';
-import { FLOW_COOKIE, SESSION_COOKIE, cookieOptions, signSession, verifyFlow } from '$lib/server/session';
+import { discoverCached, exchangeCode, remoteJwks, verifyIdToken } from '$lib/server/oidc';
+import { FLOW_COOKIE, cookieOptions, sessionCookieName, signSession, verifyFlow } from '$lib/server/session';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ cookies, url }) => {
@@ -19,17 +18,17 @@ export const GET: RequestHandler = async ({ cookies, url }) => {
 	}
 
 	try {
-		const meta = await discover(cfg.oidc.issuer);
+		const meta = await discoverCached(cfg.oidc.issuer);
 		const idToken = await exchangeCode(meta, cfg.oidc, code, flow.verifier);
 		const identity = await verifyIdToken(
 			idToken,
 			meta,
 			cfg.oidc,
 			flow.nonce,
-			createRemoteJWKSet(new URL(meta.jwks_uri))
+			remoteJwks(meta.jwks_uri)
 		);
 		cookies.set(
-			SESSION_COOKIE,
+			sessionCookieName(secure),
 			await signSession(cfg.sessionSecret, identity),
 			cookieOptions(secure, 3600)
 		);

@@ -1,6 +1,16 @@
 import { SignJWT, jwtVerify } from 'jose';
 
 export const SESSION_COOKIE = 'flags_session';
+/**
+ * Session cookie name on https. The __Host- prefix makes the browser require
+ * Secure, Path=/ and no Domain, so a sibling subdomain cannot plant or shadow
+ * the session. Plain http (local dev) keeps the unprefixed name, which browsers
+ * would otherwise reject.
+ */
+export const SECURE_SESSION_COOKIE = '__Host-flags_session';
+export const sessionCookieName = (secure: boolean) => (secure ? SECURE_SESSION_COOKIE : SESSION_COOKIE);
+/** Cloudflare Access sets this cookie on the protected hostname; it carries the same JWT as the header. */
+export const CF_ACCESS_COOKIE = 'CF_Authorization';
 export const FLOW_COOKIE = 'flags_oidc_flow';
 const ISSUER = 'flags-kit';
 

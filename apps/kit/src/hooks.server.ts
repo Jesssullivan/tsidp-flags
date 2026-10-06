@@ -1,6 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
 import { getRuntime } from '$lib/server/runtime';
-import { SESSION_COOKIE } from '$lib/server/session';
+import { CF_ACCESS_COOKIE, sessionCookieName } from '$lib/server/session';
 import { buildSources } from '$lib/server/sources';
 
 /** Build FlagSource[] for the request. Resolution happens in +layout.server.ts. */
@@ -15,7 +15,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		{
 			headers: event.request.headers,
 			peerAddr,
-			sessionCookie: event.cookies.get(SESSION_COOKIE)
+			sessionCookie: event.cookies.get(sessionCookieName(event.url.protocol === 'https:')),
+			cfCookie: event.cookies.get(CF_ACCESS_COOKIE)
 		},
 		getRuntime()
 	);

@@ -94,6 +94,10 @@ exactly its one tag and no Funnel.
 - `resolve()` returns every flag `false` while any source is `pending`, and `status: "failed"` when nothing was granted and a source errored. A UI should render nothing gated for either.
 - An `override` source claiming `false` wins over every grant. `override: on` is ignored when `NODE_ENV=production`.
 - `cfSessionProbe(url)` in `@tsidp-flags/flags` asks a Cloudflare Access gated host's JSON route (for example `{"access": true}` at `/access-state.json`) with a credentialed, manual-redirect, 4 second GET. An opaque redirect (Access login) is `absent`, the exact body is `ok`, and anything else is `error`. Its source kind `cf-session-probe` is capped at `hint`.
+- Serve headers count only when the TCP peer equals `TRUSTED_PROXY_ADDR`; an IPv4-mapped peer (`::ffff:127.0.0.1`) matches the IPv4 address. If adapter-node's `ADDRESS_HEADER` is set, the peer address is itself a request header, so the serve-header source refuses with `error` rather than trusting it.
+- Cloudflare Access is read from the `Cf-Access-Jwt-Assertion` header or, when that is absent, the `CF_Authorization` cookie. Both are verified the same way.
+- The OIDC discovery document (10 minute TTL) and each remote JWKS are cached per process, so sign-ins do not refetch them.
+- On https the session cookie is `__Host-flags_session` (Secure, Path=/, no Domain); plain http keeps `flags_session`. Rotation: changing `SESSION_SECRET` signs everyone out, because old cookies stop verifying. Deploying the `__Host-` rename has the same effect once, because the old name is no longer read. Logout clears both names.
 - The kit's `/api/surface` serves the manifest to a static origin set by `STATIC_ORIGIN` (exact match, no credentials), so it reflects serve-header and Cloudflare Access signals, not the same-site OIDC cookie.
 
 ## CI
