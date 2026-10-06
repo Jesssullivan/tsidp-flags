@@ -23,10 +23,11 @@ YES = {"Tailscale-User-Login": LOGIN, "Tailscale-App-Capabilities": CAPS}
 
 
 class Running:
-    def __init__(self, guard_ok=lambda: True):
+    def __init__(self, guard_ok=lambda: True, whois=None):
         self.lines: list[str] = []
         handler = probe.make_handler(
-            ORIGIN, guard_ok, self.lines.append, today=lambda: datetime.date(2026, 10, 4)
+            ORIGIN, guard_ok, self.lines.append, today=lambda: datetime.date(2026, 10, 4),
+            whois=whois,
         )
         self.server = probe.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.port = self.server.server_address[1]
@@ -217,6 +218,129 @@ class HttpTest(unittest.TestCase):
         self.addCleanup(srv.close)
         self.assertEqual(srv.request("GET", "/probe.svg", YES)[0], 404)
         self.assertEqual(json.loads(srv.request("GET", "/v1/surface", YES)[2])["flags"], {"member": False})
+
+
+DEVICE_USER = "device.owner@example.com"
+
+
+def device_whois(grant=None, tags=None):
+    """A WhoIs body for a tagged node whose CapMap carries `grant` under CAP."""
+    if grant is None:
+        grant = {"member": True, "user": DEVICE_USER}
+    return {
+        "Node": {"Tags": [TAG.replace("flag-probe", "laptop")] if tags is None else tags},
+        "CapMap": {CAP: [grant]},
+    }
+
+
+class ForwardedCallerTest(unittest.TestCase):
+    def test_loopback_peer_last_tailnet_entry(self):
+        self.assertEqual(probe.forwarded_caller("127.0.0.1", [SOURCE]), SOURCE)
+        self.assertEqual(probe.forwarded_caller("::1", [f"203.0.113.9, {SOURCE}"]), SOURCE)
+        self.assertEqual(probe.forwarded_caller("127.0.0.1", ["fd7a:115c:a1e0::5"]), "fd7a:115c:a1e0::5")
+
+    def test_non_loopback_peer_is_never_trusted(self):
+        self.assertIsNone(probe.forwarded_caller(SOURCE, [SOURCE]))
+        self.assertIsNone(probe.forwarded_caller("not-an-ip", [SOURCE]))
+
+    def test_outside_tailnet_ranges_or_ambiguous_is_none(self):
+        self.assertIsNone(probe.forwarded_caller("127.0.0.1", ["203.0.113.9"]))
+        self.assertIsNone(probe.forwarded_caller("127.0.0.1", [f"{SOURCE}, 203.0.113.9"]))
+        self.assertIsNone(probe.forwarded_caller("127.0.0.1", [SOURCE, SOURCE]))
+        self.assertIsNone(probe.forwarded_caller("127.0.0.1", []))
+        self.assertIsNone(probe.forwarded_caller("127.0.0.1", ["garbage"]))
+
+
+class DeviceGrantTest(unittest.TestCase):
+    def test_tagged_node_with_flag_and_user(self):
+        self.assertTrue(probe.device_grant_yes(device_whois(), CAP))
+        as_text = device_whois(grant=json.dumps({"member": True, "user": DEVICE_USER}))
+        self.assertTrue(probe.device_grant_yes(as_text, CAP))
+
+    def test_custom_flag_name(self):
+        whois = device_whois(grant={"qa": True, "user": DEVICE_USER})
+        self.assertTrue(probe.device_grant_yes(whois, CAP, flag="qa"))
+        self.assertFalse(probe.device_grant_yes(whois, CAP))
+
+    def test_no_without_tags_flag_user_or_capability(self):
+        self.assertFalse(probe.device_grant_yes(device_whois(tags=[]), CAP))
+        self.assertFalse(probe.device_grant_yes(device_whois(grant={"member": True}), CAP))
+        self.assertFalse(probe.device_grant_yes(device_whois(grant={"member": True, "user": " "}), CAP))
+        self.assertFalse(probe.device_grant_yes(device_whois(grant={"member": "true", "user": DEVICE_USER}), CAP))
+        self.assertFalse(probe.device_grant_yes(device_whois(), "example.org/cap/other"))
+        for junk in (None, [], "x", {"Node": "x"}, {"Node": {"Tags": ["tag:a"]}, "CapMap": []}):
+            self.assertFalse(probe.device_grant_yes(junk, CAP))
+
+    def test_make_whois_fails_closed(self):
+        def boom(_args):
+            raise OSError("no socket")
+        self.assertIsNone(probe.make_whois(boom)(SOURCE))
+        self.assertIsNone(probe.make_whois(lambda _a: "not json")(SOURCE))
+        seen = []
+        whois = probe.make_whois(lambda a: seen.append(list(a)) or json.dumps(device_whois()))
+        self.assertTrue(probe.device_grant_yes(whois(SOURCE), CAP))
+        self.assertEqual(seen, [["whois", "--json", SOURCE]])
+
+
+class DeviceHttpTest(unittest.TestCase):
+    def setUp(self):
+        self.asked: list[str] = []
+
+        def whois(addr):
+            self.asked.append(addr)
+            return device_whois()
+
+        self.srv = Running(whois=whois)
+        self.addCleanup(self.srv.close)
+
+    def test_device_yes_via_forwarded_tailnet_address(self):
+        status, _, body = self.srv.request("GET", "/probe.svg", {"X-Forwarded-For": SOURCE})
+        self.assertEqual((status, body), (200, probe.PIXEL))
+        self.assertEqual(self.asked, [SOURCE])
+        surface = json.loads(self.srv.request("GET", "/v1/surface", {"X-Forwarded-For": SOURCE})[2])
+        self.assertEqual(surface["flags"], {"member": True})
+        self.assertEqual(surface["basis"][0]["trust"], "hint")
+
+    def test_no_forwarded_header_or_outside_range_is_no(self):
+        self.assertEqual(self.srv.request("GET", "/probe.svg", {})[0], 404)
+        self.assertEqual(self.srv.request("GET", "/probe.svg", {"X-Forwarded-For": "203.0.113.9"})[0], 404)
+        self.assertEqual(self.asked, [])
+
+    def test_login_header_present_uses_the_user_path_only(self):
+        headers = {"Tailscale-User-Login": LOGIN, "X-Forwarded-For": SOURCE}
+        self.assertEqual(self.srv.request("GET", "/probe.svg", headers)[0], 404)
+        self.assertEqual(self.asked, [])
+
+    def test_device_identity_never_reaches_body_headers_or_log(self):
+        for path in ("/probe.svg", "/v1/tailnet", "/v1/surface"):
+            _, headers, body = self.srv.request("GET", path, {"X-Forwarded-For": SOURCE, "Origin": ORIGIN})
+            blob = (json.dumps(headers) + body.decode("latin-1")).lower()
+            self.assertNotIn(DEVICE_USER, blob)
+            self.assertNotIn(SOURCE, blob)
+        log = "\n".join(self.srv.lines).lower()
+        self.assertNotIn(DEVICE_USER, log)
+        self.assertNotIn(SOURCE, log)
+
+    def test_vary_covers_forwarded_for(self):
+        _, headers, _ = self.srv.request("GET", "/v1/tailnet", {"X-Forwarded-For": SOURCE})
+        self.assertIn("x-forwarded-for", headers["vary"].lower())
+
+    def test_guard_failure_turns_device_yes_into_no(self):
+        srv = Running(guard_ok=lambda: False, whois=lambda _a: device_whois())
+        self.addCleanup(srv.close)
+        self.assertEqual(srv.request("GET", "/probe.svg", {"X-Forwarded-For": SOURCE})[0], 404)
+
+    def test_without_whois_the_device_path_is_off(self):
+        srv = Running()
+        self.addCleanup(srv.close)
+        self.assertEqual(srv.request("GET", "/probe.svg", {"X-Forwarded-For": SOURCE})[0], 404)
+
+
+class ExitCodeTest(unittest.TestCase):
+    def test_config_refusal_exits_78(self):
+        self.assertEqual(probe.EXIT_CONFIG, 78)
+        self.assertEqual(probe.main(["--allowed-origin", "*", "--tailscale", "ts", "--socket", "/s"]), 78)
+        self.assertEqual(probe.main([]), 78)
 
 
 class ArgsTest(unittest.TestCase):

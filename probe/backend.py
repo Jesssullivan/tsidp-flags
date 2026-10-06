@@ -20,6 +20,17 @@ Decision (server side only):
      Tailscale-App-Capabilities header whose JSON names the probe capability
      with a non-empty grant list. Anything else is no. That also covers
      anything that reached the loopback port without passing through Serve.
+  2b. Device path: a tagged device has no user, so Serve sends no
+     Tailscale-User-Login and the user path says no. When the login header is
+     absent, the backend asks the probe node's own tailscaled for WhoIs of the
+     caller and answers yes only if that node is tagged and its CapMap carries
+     the probe capability with a grant whose parameters hold the probe flag
+     (PROBE_FLAG, default "member") set to true and a non-empty "user". That is
+     the shape tailnet-acl's Cap.ProbeUser renders. The identity is the one
+     tailnet policy declares for that device; nothing in the request supplies
+     it. The caller address is the last X-Forwarded-For entry (the one Serve's
+     reverse proxy appends), trusted only when the TCP peer is loopback and
+     only inside the tailnet address ranges. It proves a device, not a person.
   3. Yes also needs the node guard to pass: the node is Running, carries
      exactly its one tag, and has no Funnel anywhere in its serve config. The
      guard is re-checked at most every GUARD_TTL seconds, on demand.
@@ -43,7 +54,8 @@ Routes (anything else is 404 with no body):
                          the exact allowed origin, else 404
 
 `--guard-once` runs the node guard a single time and exits with its code (0
-ok, 10 not running, 11 wrong tags, 12 Funnel, 13 error).
+ok, 10 not running, 11 wrong tags, 12 Funnel, 13 error). A refused start
+(bad flags or a non-loopback bind) exits 78 (EX_CONFIG); see probe/README.md.
 
 Python 3 standard library only. Binds loopback only. Every setting can come
 from the environment (ALLOWED_ORIGIN, PROBE_CAPABILITY, PROBE_TAG,
@@ -87,7 +99,7 @@ PIXEL = (
 
 COMMON_HEADERS = (
     ("Cache-Control", "no-store"),
-    ("Vary", "Origin, Tailscale-User-Login, Tailscale-App-Capabilities"),
+    ("Vary", "Origin, Tailscale-User-Login, Tailscale-App-Capabilities, X-Forwarded-For"),
     ("X-Content-Type-Options", "nosniff"),
     ("Referrer-Policy", "no-referrer"),
 )
@@ -104,6 +116,9 @@ GUARD_EXIT = {
     GUARD_FUNNEL: 12,
     GUARD_ERROR: 13,
 }
+# sysexits.h EX_CONFIG: refused to start on configuration. A supervisor should
+# not restart on it (systemd: RestartPreventExitStatus=78).
+EXIT_CONFIG = 78
 
 
 def decide(login_values: Iterable[str], capability_values: Iterable[str], capability: str) -> bool:
@@ -122,6 +137,79 @@ def decide(login_values: Iterable[str], capability_values: Iterable[str], capabi
         return False
     rules = granted.get(capability)
     return isinstance(rules, list) and len(rules) > 0
+
+
+TAILNET_V4 = ipaddress.ip_network("100.64.0.0/10")
+TAILNET_V6 = ipaddress.ip_network("fd7a:115c:a1e0::/48")
+
+
+def forwarded_caller(peer: str, forwarded_values: Iterable[str]) -> str | None:
+    """The tailnet address Serve forwarded, or None.
+
+    Trusted only when the TCP peer is loopback (Serve is the one local client
+    that sets it). One X-Forwarded-For header, last entry, must parse as a
+    tailnet address; anything else is None.
+    """
+    try:
+        if not ipaddress.ip_address(peer).is_loopback:
+            return None
+    except ValueError:
+        return None
+    values = list(forwarded_values)
+    if len(values) != 1:
+        return None
+    last = values[0].rsplit(",", 1)[-1].strip()
+    try:
+        addr = ipaddress.ip_address(last)
+    except ValueError:
+        return None
+    if addr in TAILNET_V4 or addr in TAILNET_V6:
+        return str(addr)
+    return None
+
+
+def device_grant_yes(whois: object, capability: str, flag: str = DEFAULT_FLAG) -> bool:
+    """True for a tagged node whose CapMap grants `capability` with `flag` true and a user.
+
+    `whois` is the parsed WhoIs response (or anything else, which is no). The
+    user value is checked and discarded; it is never returned or logged.
+    """
+    if not isinstance(whois, dict):
+        return False
+    node = whois.get("Node")
+    if not isinstance(node, dict):
+        return False
+    tags = node.get("Tags")
+    if not isinstance(tags, list) or not tags or not all(isinstance(t, str) and t for t in tags):
+        return False
+    capmap = whois.get("CapMap")
+    if not isinstance(capmap, dict):
+        return False
+    grants = capmap.get(capability)
+    if not isinstance(grants, list):
+        return False
+    for grant in grants:
+        if isinstance(grant, str):
+            try:
+                grant = json.loads(grant)
+            except ValueError:
+                continue
+        if not isinstance(grant, dict):
+            continue
+        user = grant.get("user")
+        if grant.get(flag) is True and isinstance(user, str) and user.strip():
+            return True
+    return False
+
+
+def make_whois(run: Callable[[Sequence[str]], str]) -> Callable[[str], object]:
+    """WhoIs through the probe node's own tailscaled (make_runner pins --socket)."""
+    def whois(addr: str) -> object:
+        try:
+            return json.loads(run(["whois", "--json", addr]))
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return None  # fail closed
+    return whois
 
 
 def surface(yes: bool, flag: str = DEFAULT_FLAG) -> dict:
@@ -229,6 +317,7 @@ def make_handler(
     capability: str = DEFAULT_CAPABILITY,
     flag: str = DEFAULT_FLAG,
     today: Callable[[], datetime.date] = lambda: datetime.datetime.now(datetime.timezone.utc).date(),
+    whois: Callable[[str], object] | None = None,
 ):
     counter = DailyCounter(today)
 
@@ -272,8 +361,19 @@ def make_handler(
             return path if path in KNOWN_ROUTES else "other"
 
         def _is_yes(self) -> bool:
-            if not decide(self.headers.get_all(LOGIN_HEADER) or [],
-                          self.headers.get_all(APP_CAPS_HEADER) or [], capability):
+            logins = self.headers.get_all(LOGIN_HEADER) or []
+            if logins:
+                # User path.
+                if not decide(logins, self.headers.get_all(APP_CAPS_HEADER) or [], capability):
+                    return False
+                return guard_ok()
+            # Device path: no user header, so a tagged source or no Serve at all.
+            if whois is None:
+                return False
+            caller = forwarded_caller(
+                self.client_address[0], self.headers.get_all("X-Forwarded-For") or []
+            )
+            if caller is None or not device_grant_yes(whois(caller), capability, flag):
                 return False
             return guard_ok()
 
@@ -379,7 +479,8 @@ def build_server(args: argparse.Namespace, log: Callable[[str], None]) -> Thread
     run = make_runner(args.tailscale, args.socket)
     guard = NodeGuard(lambda: node_state(run, args.tag), log)
     handler = make_handler(args.allowed_origin, guard.ok, log,
-                           capability=args.app_capability, flag=args.flag)
+                           capability=args.app_capability, flag=args.flag,
+                           whois=make_whois(run))
     return ThreadingHTTPServer((host, args.port), handler)
 
 
@@ -401,10 +502,12 @@ def main(argv: list | None = None) -> int:
 
     try:
         server = build_server(args, log)
-    except (OSError, ValueError) as exc:
-        detail = str(exc) if isinstance(exc, ValueError) else f"errno={getattr(exc, 'errno', None)}"
-        log(f"flag-probe: refusing to start: {type(exc).__name__}: {detail}")
-        return 2
+    except ValueError as exc:
+        log(f"flag-probe: refusing to start: ValueError: {exc}")
+        return EXIT_CONFIG  # configuration: restarting will not help
+    except OSError as exc:
+        log(f"flag-probe: cannot start: OSError: errno={getattr(exc, 'errno', None)}")
+        return 1  # e.g. port in use: a restart may succeed
     log(f"flag-probe: listening on {args.bind}:{args.port} capability={args.app_capability}")
     try:
         server.serve_forever()
