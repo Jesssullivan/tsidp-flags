@@ -96,6 +96,15 @@ exactly its one tag and no Funnel.
 both apps, gitleaks, denylist check (`DENYLIST` repository secret). ACL checks
 and the Playwright test run locally (`just acl-check`, `just test-e2e`).
 
+## Dependency hygiene
+
+- `flake.lock` pins nixpkgs for `nix develop`. Refresh it with `nix flake update`
+  in its own PR.
+- `.github/dependabot.yml` opens weekly grouped PRs for the pnpm workspace and
+  for GitHub Actions. SvelteKit and its adapters stay on 2.x, and vitest and
+  TypeScript majors are ignored, so a major move is a deliberate PR.
+- Dependabot security alerts are a repository setting (Settings > Code security).
+
 ## License
 
 MIT.
