@@ -1,0 +1,45 @@
+# tsidp_flags (ruling RM11, row TS16). Bazel only.
+#
+#   bazelisk build //:pkg     the npm package a consumer links
+#   bazelisk test //...       the gate
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@aspect_rules_js//npm:defs.bzl", "npm_package")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "MODULE.bazel",
+    "package.json",
+])
+
+js_library(
+    name = "flags",
+    # Every module under src/ except the vitest files, so adapters added to
+    # index.ts (TS6 cf-session-probe.ts) ship without a BUILD edit.
+    srcs = [
+        "LICENSE",
+        "package.json",
+    ] + glob(
+        ["src/*.ts"],
+        exclude = ["src/*.test.ts"],
+    ),
+)
+
+npm_package(
+    name = "pkg",
+    srcs = [":flags"],
+    package = "@tsidp-flags/flags",
+)
+
+js_test(
+    name = "contract_test",
+    data = [
+        "MODULE.bazel",
+        ":flags",
+    ],
+    entry_point = "bazel_test/contract.mjs",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)

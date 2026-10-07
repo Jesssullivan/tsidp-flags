@@ -1,0 +1,27 @@
+"""
+tsidp_flags: the flag resolution contract (resolve, Surface v1, parseSurface)
+from Jesssullivan/tsidp-flags packages/flags, as a Bazel module (ruling RM11,
+row TS16; Linear TIN-5371). Consumed through xoxd-ai/bazel-registry:
+
+  bazel_dep(name = "tsidp_flags", version = "0.1.0")
+  npm_link_package(name = "node_modules/@tsidp-flags/flags", src = "@tsidp_flags//:pkg")
+
+The package ships TypeScript source with no runtime dependencies. MODULE.bazel
+is the only version site; //:contract_test holds package.json to it. Bazel only;
+never published to a package registry.
+"""
+
+module(
+    name = "tsidp_flags",
+    version = "0.1.0",
+    compatibility_level = 1,
+)
+
+bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
+bazel_dep(name = "aspect_rules_js", version = "2.9.1")
+bazel_dep(name = "rules_nodejs", version = "6.7.3")
+
+# Node 22.22.0 strips types natively, so the contract test imports src/index.ts
+# with no npm packages. The vitest suite stays in the pnpm workspace.
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node", dev_dependency = True)
+node.toolchain(node_version = "22.22.0")
