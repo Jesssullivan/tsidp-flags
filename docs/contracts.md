@@ -33,8 +33,7 @@ page.
 ## Items (PROPOSED, not implemented)
 
 > **Status: proposed.** Do not build against this until the operator rules
-> on Surface v1 vs items. Tracked as row TS8 in the TIN-3692 scaffold
-> convergence plan.
+> on Surface v1 vs items. Tracked as row TS8 in the maintainer's plan.
 
 The production probe answers `/v1/surface` with the links themselves:
 
