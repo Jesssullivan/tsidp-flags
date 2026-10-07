@@ -35,6 +35,7 @@ js_test(
     name = "contract_test",
     data = [
         "MODULE.bazel",
+        "bazel_test/ts-resolve.mjs",
         ":flags",
     ],
     entry_point = "bazel_test/contract.mjs",

@@ -5,9 +5,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { register } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { MAX_TRUST, parseSurface, resolve, toSurface } from '../src/index.ts';
+// src/index.ts re-exports adapters through extensionless relative imports
+// (bundler resolution). Register the .ts retry before loading it.
+register('./ts-resolve.mjs', import.meta.url);
+const { MAX_TRUST, parseSurface, resolve, toSurface } = await import('../src/index.ts');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 

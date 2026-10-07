@@ -1,7 +1,7 @@
 """
 tsidp_flags: the flag resolution contract (resolve, Surface v1, parseSurface)
 from Jesssullivan/tsidp-flags packages/flags, as a Bazel module (ruling RM11,
-row TS16; Linear TIN-5371). Consumed through xoxd-ai/bazel-registry:
+row TS16). Consumed through xoxd-ai/bazel-registry:
 
   bazel_dep(name = "tsidp_flags", version = "0.1.0")
   npm_link_package(name = "node_modules/@tsidp-flags/flags", src = "@tsidp_flags//:pkg")
