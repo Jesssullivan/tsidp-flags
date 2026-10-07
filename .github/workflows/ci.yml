@@ -36,6 +36,29 @@ jobs:
       - name: Probe unit tests
         run: python3 -m unittest discover -s probe -p 'test_*.py'
 
+      # dhall and dhall-json release binaries, pinned by sha256, so the ACL
+      # render and type check run with no Nix and no import hashes.
+      - name: Install dhall and dhall-json
+        run: |
+          set -euo pipefail
+          base=https://github.com/dhall-lang/dhall-haskell/releases/download/1.42.2
+          mkdir -p "$RUNNER_TEMP/dhall"
+          cd "$RUNNER_TEMP/dhall"
+          curl -fsSLO "$base/dhall-1.42.2-x86_64-linux.tar.bz2"
+          curl -fsSLO "$base/dhall-json-1.7.12-x86_64-linux.tar.bz2"
+          sha256sum -c - <<'SUMS'
+          b2509bbe07772f268ef193d9c36b18aa13bd32ecec76fd4b21782715b38386a3  dhall-1.42.2-x86_64-linux.tar.bz2
+          acbada5e29ecc9b6a723c3f390beb76b9db26df81546d1f472415a2f387bc457  dhall-json-1.7.12-x86_64-linux.tar.bz2
+          SUMS
+          tar xjf dhall-1.42.2-x86_64-linux.tar.bz2
+          tar xjf dhall-json-1.7.12-x86_64-linux.tar.bz2
+          echo "$RUNNER_TEMP/dhall/bin" >> "$GITHUB_PATH"
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+
+      - name: ACL render and structural check
+        run: just acl-check
+
       - name: Build both apps
         run: |
           pnpm --filter @tsidp-flags/kit build
