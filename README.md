@@ -87,7 +87,8 @@ Runs on its own tailnet node (tag `tag:flag-probe`) behind
 binding loopback only. Configure with env: `ALLOWED_ORIGIN` (one exact origin),
 `PROBE_CAPABILITY`, `PROBE_TAG`, `TAILSCALE_BIN`, `TAILSCALE_SOCKET`.
 `python3 probe/backend.py --guard-once` exits 0 only if the node is Running with
-exactly its one tag and no Funnel.
+exactly its one tag and no Funnel. Tagged devices get a yes through the WhoIs
+device path; a refused start exits 78. See [probe/README.md](probe/README.md).
 
 ## Behavior to know
 
