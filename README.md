@@ -109,6 +109,29 @@ device path; a refused start exits 78. See [probe/README.md](probe/README.md).
 both apps, the Playwright test for the static app (Chromium), gitleaks, denylist
 check (`DENYLIST` repository secret). Locally: `just test-e2e`.
 
+## Bazel module
+
+`packages/flags` is also the Bazel module `tsidp_flags` (`MODULE.bazel`,
+`BUILD.bazel`). `//:flags` is a `js_library` of the TypeScript source,
+`//:pkg` is the `npm_package` a consumer links, and `//:contract_test` runs a
+`node:test` contract check with native type stripping, so the module needs no
+npm packages. `MODULE.bazel` is the only version site; the test holds
+`package.json` to it. `.github/workflows/bazel.yml` runs
+`bazelisk mod graph --lockfile_mode=error` and `bazelisk test //...` in
+`packages/flags`.
+
+The registry entry lives in `xoxd-ai/bazel-registry` under
+`modules/tsidp_flags/<version>/`, sourced from a GitHub tag archive with
+`strip_prefix` pointing at `packages/flags`:
+
+```starlark
+bazel_dep(name = "tsidp_flags", version = "0.1.0")
+npm_link_package(name = "node_modules/@tsidp-flags/flags", src = "@tsidp_flags//:pkg")
+```
+
+It is never published to a package registry. The probes are hint-tier
+progressive enhancement only, never an access gate.
+
 ## Dependency hygiene
 
 - `flake.lock` pins nixpkgs for `nix develop`. Refresh it with `nix flake update`

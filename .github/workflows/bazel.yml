@@ -1,0 +1,41 @@
+name: Bazel
+
+# packages/flags is also the tsidp_flags Bazel module (row TS16). This is a
+# separate workflow so that ci.yml edits in the TS3/TS6/TS7 stack stay serialized.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/flags/**'
+      - '.github/workflows/bazel.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/flags/**'
+      - '.github/workflows/bazel.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  flags-module:
+    name: tsidp_flags module test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/flags
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # bazelisk ships on ubuntu-latest and reads packages/flags/.bazelversion.
+      - name: Bazel version
+        run: bazelisk version
+
+      - name: Resolve the module graph against the lockfile
+        run: bazelisk mod graph --lockfile_mode=error > /dev/null
+
+      - name: Build //:pkg and run //...
+        run: bazelisk test //... --test_output=errors
