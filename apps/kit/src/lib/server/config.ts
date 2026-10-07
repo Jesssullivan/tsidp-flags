@@ -13,6 +13,12 @@ export interface CfAccessConfig {
 export interface Config {
 	/** Serve headers are trusted only from this peer address. */
 	trustedProxyAddr: string | null;
+	/**
+	 * adapter-node ADDRESS_HEADER. When set, getClientAddress() reads a request
+	 * header instead of the TCP peer, so the proxy check cannot be trusted and
+	 * the serve-header source refuses (fails closed).
+	 */
+	addressHeader: string | null;
 	/** App capability that must appear in Tailscale-App-Capabilities. */
 	capability: string;
 	oidc: OidcConfig | null;
@@ -45,6 +51,7 @@ export function loadConfig(env: Env, readSecretFile: (path: string) => string = 
 
 	return {
 		trustedProxyAddr: nonEmpty(env.TRUSTED_PROXY_ADDR),
+		addressHeader: nonEmpty(env.ADDRESS_HEADER),
 		capability: nonEmpty(env.PROBE_CAPABILITY) ?? 'example.org/cap/flag-probe',
 		oidc:
 			issuer && clientId && redirectUri

@@ -1,7 +1,18 @@
 import { createHash } from 'node:crypto';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, type JWK } from 'jose';
-import { describe, expect, it } from 'vitest';
-import { authorizeUrl, discover, exchangeCode, pkcePair, verifyIdToken, type ProviderMeta } from './oidc';
+import { beforeEach, describe, expect, it } from 'vitest';
+import {
+	DISCOVERY_TTL_MS,
+	authorizeUrl,
+	clearOidcCaches,
+	discover,
+	discoverCached,
+	exchangeCode,
+	pkcePair,
+	remoteJwks,
+	verifyIdToken,
+	type ProviderMeta
+} from './oidc';
 
 const ISSUER = 'https://idp.example.ts.net';
 const meta: ProviderMeta = {
@@ -101,5 +112,43 @@ describe('verifyIdToken with a fake JWKS', () => {
 		const { getKey, mint } = await setup();
 		const stranger = (await generateKeyPair('ES256')).privateKey as CryptoKey;
 		await expect(verifyIdToken(await mint({ nonce: 'n' }, { key: stranger }), meta, cfg, 'n', getKey)).rejects.toThrow();
+	});
+});
+
+describe('module-level discovery and JWKS caches', () => {
+	const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+	beforeEach(() => clearOidcCaches());
+
+	it('fetches discovery once per issuer within the TTL, then again after it', async () => {
+		let calls = 0;
+		const f = async () => {
+			calls += 1;
+			return json(meta);
+		};
+		const t0 = 1_000_000;
+		expect(await discoverCached(ISSUER, f, t0)).toEqual(meta);
+		expect(await discoverCached(ISSUER, f, t0 + 1000)).toEqual(meta);
+		expect(calls).toBe(1);
+		await discoverCached(ISSUER, f, t0 + DISCOVERY_TTL_MS + 1);
+		expect(calls).toBe(2);
+	});
+
+	it('does not cache a failed discovery', async () => {
+		let calls = 0;
+		const bad = async () => {
+			calls += 1;
+			return json({}, 500);
+		};
+		await expect(discoverCached(ISSUER, bad, 5)).rejects.toThrow();
+		await new Promise((ok) => setTimeout(ok, 0));
+		await expect(discoverCached(ISSUER, bad, 6)).rejects.toThrow();
+		expect(calls).toBe(2);
+		expect(await discoverCached(ISSUER, async () => json(meta), 7)).toEqual(meta);
+	});
+
+	it('reuses one remote key set per jwks_uri', () => {
+		const a = remoteJwks('https://idp.example.ts.net/.well-known/jwks.json');
+		expect(remoteJwks('https://idp.example.ts.net/.well-known/jwks.json')).toBe(a);
+		expect(remoteJwks('https://other.example.ts.net/jwks')).not.toBe(a);
 	});
 });

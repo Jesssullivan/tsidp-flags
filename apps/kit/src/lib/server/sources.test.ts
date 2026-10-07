@@ -6,7 +6,7 @@ import { resolve } from '@tsidp-flags/flags';
 import { RULES } from '../rules';
 import { loadConfig, type Config } from './config';
 import { signSession } from './session';
-import { buildSources, cfAccessSource, serveHeaderSource, tsidpSource } from './sources';
+import { buildSources, cfAccessSource, normalizeAddr, serveHeaderSource, tsidpSource } from './sources';
 
 const SECRET = Buffer.alloc(32, 7).toString('base64');
 const CAP = 'example.org/cap/flag-probe';
@@ -52,6 +52,31 @@ describe('serve-header source: trusted only from the configured proxy', () => {
 		expect(serveHeaderSource(headers(h), PROXY, cfg()).claims).toEqual({ member: false });
 		const empty = { ...MEMBER_HEADERS, 'tailscale-app-capabilities': JSON.stringify({ [CAP]: [] }) };
 		expect(serveHeaderSource(headers(empty), PROXY, cfg()).claims).toEqual({ member: false });
+	});
+
+	it('an IPv4-mapped IPv6 peer matches the IPv4 proxy address, either way round', () => {
+		expect(normalizeAddr('::ffff:100.64.0.9')).toBe(PROXY);
+		expect(normalizeAddr('::FFFF:100.64.0.9')).toBe(PROXY);
+		expect(normalizeAddr('fd7a:115c:a1e0::9')).toBe('fd7a:115c:a1e0::9');
+		expect(serveHeaderSource(headers(MEMBER_HEADERS), `::ffff:${PROXY}`, cfg()).claims).toEqual({ member: true });
+		const mappedCfg = cfg({ TRUSTED_PROXY_ADDR: `::ffff:${PROXY}` });
+		expect(serveHeaderSource(headers(MEMBER_HEADERS), PROXY, mappedCfg).claims).toEqual({ member: true });
+		expect(serveHeaderSource(headers(MEMBER_HEADERS), '::ffff:203.0.113.5', cfg()).state).toBe('absent');
+	});
+
+	it('refuses (error) when ADDRESS_HEADER is set, even from the proxy address', () => {
+		const c = cfg({ ADDRESS_HEADER: 'x-forwarded-for' });
+		expect(c.addressHeader).toBe('x-forwarded-for');
+		expect(serveHeaderSource(headers(MEMBER_HEADERS), PROXY, c)).toMatchObject({ kind: 'serve-header', state: 'error' });
+		expect(resolve([serveHeaderSource(headers(MEMBER_HEADERS), PROXY, c)], RULES)).toMatchObject({
+			flags: { member: false },
+			status: 'failed'
+		});
+	});
+
+	it('ADDRESS_HEADER without a trusted proxy configured is simply no signal', () => {
+		const c = loadConfig({ ...base, TRUSTED_PROXY_ADDR: '', ADDRESS_HEADER: 'x-forwarded-for' });
+		expect(serveHeaderSource(headers(MEMBER_HEADERS), PROXY, c).state).toBe('absent');
 	});
 
 	it('missing login, malformed or duplicated capability headers are no signal', () => {
@@ -178,6 +203,27 @@ describe('cf-access source against a fake JWKS served over http', () => {
 			status: 'failed'
 		});
 		expect(resolve(await run({}), RULES)).toMatchObject({ flags: { member: false }, status: 'settled' });
+	});
+
+	it('accepts the CF_Authorization cookie when the header is absent', async () => {
+		const good = await jwt({ email: 'you@example.com' });
+		const run = (h: Record<string, string>, cfCookie?: string) =>
+			buildSources({ headers: headers(h), peerAddr: '203.0.113.5', sessionCookie: undefined, cfCookie }, rt());
+		expect(resolve(await run({}, good), RULES)).toMatchObject({
+			flags: { member: true },
+			basis: [{ flag: 'member', source: 'cf-access', trust: 'verified' }]
+		});
+		expect(resolve(await run({}, 'bad'), RULES)).toMatchObject({ flags: { member: false }, status: 'failed' });
+	});
+
+	it('the header wins over the cookie', async () => {
+		const good = await jwt({ email: 'you@example.com' });
+		const other = await jwt({ email: 'other@example.com' });
+		const sources = await buildSources(
+			{ headers: headers({ 'cf-access-jwt-assertion': other }), peerAddr: null, sessionCookie: undefined, cfCookie: good },
+			rt()
+		);
+		expect(resolve(sources, RULES).flags.member).toBe(false);
 	});
 });
 
