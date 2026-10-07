@@ -1,0 +1,41 @@
+# Dependabot version updates. Security alerts and security updates are
+# repository settings; see README "Dependency hygiene".
+version: 2
+updates:
+  # One pnpm workspace (pnpm-lock.yaml at the root covers apps/* and packages/*).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      svelte-toolchain:
+        patterns:
+          - "@sveltejs/*"
+          - "svelte"
+          - "svelte-check"
+          - "vite"
+      test-toolchain:
+        patterns:
+          - "vitest"
+          - "@playwright/test"
+    ignore:
+      # The kit app and the static app stay on SvelteKit 2.x and its adapters.
+      # A SvelteKit 3 move is a deliberate PR, not a Dependabot bump.
+      - dependency-name: "@sveltejs/kit"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sveltejs/adapter-*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
