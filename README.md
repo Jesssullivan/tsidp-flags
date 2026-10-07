@@ -88,14 +88,15 @@ exactly its one tag and no Funnel.
 
 - `resolve()` returns every flag `false` while any source is `pending`, and `status: "failed"` when nothing was granted and a source errored. A UI should render nothing gated for either.
 - An `override` source claiming `false` wins over every grant. `override: on` is ignored when `NODE_ENV=production`.
+- `cfSessionProbe(url)` in `@tsidp-flags/flags` asks a Cloudflare Access gated host's JSON route (for example `{"access": true}` at `/access-state.json`) with a credentialed, manual-redirect, 4 second GET. An opaque redirect (Access login) is `absent`, the exact body is `ok`, and anything else is `error`. Its source kind `cf-session-probe` is capped at `hint`.
 - The kit's `/api/surface` serves the manifest to a static origin set by `STATIC_ORIGIN` (exact match, no credentials), so it reflects serve-header and Cloudflare Access signals, not the same-site OIDC cookie.
 
 ## CI
 
 `.github/workflows/ci.yml`: install, vitest (flags, kit), probe unittest,
 `just acl-check` (dhall and dhall-json release binaries pinned by sha256), build
-both apps, gitleaks, denylist check (`DENYLIST` repository secret). The
-Playwright test runs locally (`just test-e2e`).
+both apps, the Playwright test for the static app (Chromium), gitleaks, denylist
+check (`DENYLIST` repository secret). Locally: `just test-e2e`.
 
 ## Dependency hygiene
 
