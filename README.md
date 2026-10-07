@@ -75,6 +75,11 @@ After tsidp is up, register your kit as a client, point `OIDC_ISSUER` at it,
 and members receive `flag_member: "true"` through the `extraClaims` grant in
 the ACL.
 
+Optional: `docker compose --profile tagged-identity up --build idp-tagged`
+builds tsidp from upstream `8fa860f` with a patch that lets a grant's
+`taggedIdentity` sign in a tagged device. Pin, sanitisation and BSD 3-Clause
+licensing notes are in [idp/tagged/README.md](idp/tagged/README.md).
+
 ### Probe
 
 Runs on its own tailnet node (tag `tag:flag-probe`) behind
@@ -94,7 +99,8 @@ exactly its one tag and no Funnel.
 ## CI
 
 `.github/workflows/ci.yml`: install, vitest (flags, kit), probe unittest,
-`just acl-check` (dhall and dhall-json release binaries pinned by sha256), build
+`just acl-check` (dhall and dhall-json release binaries pinned by sha256),
+`docker compose config` for the default and `tagged-identity` profiles, build
 both apps, the Playwright test for the static app (Chromium), gitleaks, denylist
 check (`DENYLIST` repository secret). Locally: `just test-e2e`.
 

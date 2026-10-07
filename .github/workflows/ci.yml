@@ -59,6 +59,11 @@ jobs:
       - name: ACL render and structural check
         run: just acl-check
 
+      - name: Compose config (default and tagged-identity profile)
+        run: |
+          docker compose config -q
+          docker compose --profile tagged-identity config -q
+
       - name: Build both apps
         run: |
           pnpm --filter @tsidp-flags/kit build
