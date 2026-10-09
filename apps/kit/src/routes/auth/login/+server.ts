@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getConfig } from '$lib/server/runtime';
-import { authorizeUrl, discoverCached, pkcePair, randomToken } from '$lib/server/oidc';
-import { FLOW_COOKIE, cookieOptions, signFlow } from '$lib/server/session';
+import { getConfig } from '#lib/server/runtime.js';
+import { authorizeUrl, discoverCached, pkcePair, randomToken } from '#lib/server/oidc.js';
+import { FLOW_COOKIE, cookieOptions, signFlow } from '#lib/server/session.js';
 import type { RequestHandler } from './$types';
 
 /** Start the authorization code flow with PKCE. State, verifier and nonce ride in a signed 10 minute cookie. */

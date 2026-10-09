@@ -7,6 +7,7 @@ import http.client
 import json
 import sys
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -43,6 +44,14 @@ class Running:
         body = resp.read()
         conn.close()
         return resp.status, {k.lower(): v for k, v in resp.getheaders()}, body
+
+    def wait_for_lines(self, count, timeout=5.0):
+        # The handler logs after it writes the body, so the client can finish reading
+        # before the line exists. Wait for it instead of racing the server thread.
+        deadline = time.monotonic() + timeout
+        while len(self.lines) < count and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return self.lines
 
     def close(self):
         self.server.shutdown()
@@ -208,7 +217,7 @@ class HttpTest(unittest.TestCase):
             blob = (json.dumps(headers) + body.decode("latin-1")).lower()
             self.assertNotIn("someone", blob)
             self.assertNotIn(LOGIN.lower(), blob)
-        log = "\n".join(self.srv.lines).lower()
+        log = "\n".join(self.srv.wait_for_lines(3)).lower()
         for secret in ("someone", "example.com", SOURCE, "127.0.0.1"):
             self.assertNotIn(secret, log)
         self.assertIn("route=/v1/surface status=200 day=2026-10-04", log)
@@ -317,7 +326,7 @@ class DeviceHttpTest(unittest.TestCase):
             blob = (json.dumps(headers) + body.decode("latin-1")).lower()
             self.assertNotIn(DEVICE_USER, blob)
             self.assertNotIn(SOURCE, blob)
-        log = "\n".join(self.srv.lines).lower()
+        log = "\n".join(self.srv.wait_for_lines(3)).lower()
         self.assertNotIn(DEVICE_USER, log)
         self.assertNotIn(SOURCE, log)
 

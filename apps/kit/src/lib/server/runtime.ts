@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { env } from '$env/dynamic/private';
+import * as env from '$app/env/private';
 import { loadConfig } from './config';
 import { makeRuntime, type Runtime } from './sources';
 

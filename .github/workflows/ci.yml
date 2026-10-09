@@ -28,6 +28,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # TypeScript 7: tsc for packages/flags, svelte-check --tsgo for the apps.
+      - name: Type check
+        run: pnpm -r check
+
       - name: Unit tests (flags, kit)
         run: |
           pnpm --filter @tsidp-flags/flags test

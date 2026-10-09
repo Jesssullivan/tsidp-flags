@@ -1,5 +1,5 @@
 import { resolve } from '@tsidp-flags/flags';
-import { RULES } from '$lib/rules';
+import { RULES } from '#lib/rules.js';
 import type { LayoutServerLoad } from './$types';
 
 /** Flags and basis for every page. Never returns the identity behind them. */

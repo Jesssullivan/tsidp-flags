@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { resolve } from '@tsidp-flags/flags';
-import { RULES } from '$lib/rules';
+import { RULES } from '#lib/rules.js';
 import type { RequestHandler } from './$types';
 
 /** 403 without a verified member flag. RULES requires verified trust. */

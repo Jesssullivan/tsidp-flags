@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { SECURE_SESSION_COOKIE, SESSION_COOKIE } from '$lib/server/session';
+import { SECURE_SESSION_COOKIE, SESSION_COOKIE } from '#lib/server/session.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = ({ cookies }) => {

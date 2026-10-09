@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { resolve, toSurface } from '@tsidp-flags/flags';
-import { getConfig } from '$lib/server/runtime';
-import { RULES } from '$lib/rules';
+import { getConfig } from '#lib/server/runtime.js';
+import { RULES } from '#lib/rules.js';
 import type { RequestHandler } from './$types';
 
 /** Manifest for a static page. Exact-origin CORS from STATIC_ORIGIN; no credentials. */

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GatedSlot from '$lib/GatedSlot.svelte';
+	import GatedSlot from '#lib/GatedSlot.svelte';
 
 	// The probe (or kit) origin that serves the flag manifest. Placeholder default.
 	const manifestUrl = import.meta.env.VITE_MANIFEST_URL ?? 'https://probe.example.ts.net/v1/surface';
