@@ -1,0 +1,29 @@
+# Upstream: https://github.com/sveltejs/language-tools (packages/svelte-check),
+#           tag svelte-check@4.7.6; source file src/tsgo.ts, bundled here.
+# File:     dist/src/index.js (tryParseTsGoVersion)
+# Reason:   RU13 (TypeScript 7.0.2 as `typescript`). `--tsgo` looked for
+#           TypeScript 7 only under the `@typescript/native` or
+#           `@typescript/native-preview` aliases. It now also accepts
+#           `typescript` itself when its major version is 7 or later, so
+#           `svelte-check --tsgo` type-checks with the project's own
+#           typescript@7.0.2. svelte-check's in-process parser (svelte2tsx)
+#           gets the TS 6 API through the `.pnpmfile.cjs` readPackage hook
+#           (its `typescript` peer becomes
+#           `npm:@typescript/typescript6@6.0.2`); see patches/README.md.
+# Upstream-ready diff: patches/upstream/sveltejs-language-tools-svelte-check-tsgo-typescript7.diff
+# Remove when svelte-check discovers TypeScript 7 as `typescript`.
+diff --git a/dist/src/index.js b/dist/src/index.js
+index 8eec917..e0c9b70 100644
+--- a/dist/src/index.js
++++ b/dist/src/index.js
+@@ -129084,7 +129084,9 @@ async function findFiles(workspacePath, filePathsToIgnore, filter) {
+ 
+ function tryParseTsGoVersion(tsconfigPath) {
+     const pkg = tryParsePkg(tsconfigPath, '@typescript/native') ??
+-        tryParsePkg(tsconfigPath, '@typescript/native-preview');
++        tryParsePkg(tsconfigPath, '@typescript/native-preview') ??
++        // TypeScript 7 installed as `typescript` itself (no alias).
++        tryParsePkg(tsconfigPath, 'typescript');
+     if (pkg &&
+         (pkg.pkgJsonName === 'typescript' || pkg.pkgJsonName === '@typescript/native-preview') &&
+         pkg.major >= 7) {

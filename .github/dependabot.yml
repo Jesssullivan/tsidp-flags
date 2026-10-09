@@ -3,33 +3,26 @@
 version: 2
 updates:
   # One pnpm workspace (pnpm-lock.yaml at the root covers apps/* and packages/*).
+  # One grouped weekly PR. The exact-pinned stack below moves only in a
+  # deliberate PR, together with patches/ (the patch files are keyed to the
+  # exact @sveltejs/kit and svelte-check versions).
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      svelte-toolchain:
-        patterns:
-          - "@sveltejs/*"
-          - "svelte"
-          - "svelte-check"
-          - "vite"
-      test-toolchain:
-        patterns:
-          - "vitest"
-          - "@playwright/test"
+      npm:
+        patterns: ["*"]
     ignore:
-      # The kit app and the static app stay on SvelteKit 2.x and its adapters.
-      # A SvelteKit 3 move is a deliberate PR, not a Dependabot bump.
       - dependency-name: "@sveltejs/kit"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@sveltejs/adapter-*"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "vitest"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: "svelte"
+      - dependency-name: "vite"
       - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: "@typescript/typescript6"
+      - dependency-name: "svelte-check"
+      - dependency-name: "vitest"
+      - dependency-name: "@playwright/test"
 
   - package-ecosystem: github-actions
     directory: /

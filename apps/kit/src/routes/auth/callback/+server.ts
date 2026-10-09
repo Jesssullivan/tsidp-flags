@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getConfig } from '$lib/server/runtime';
-import { discoverCached, exchangeCode, remoteJwks, verifyIdToken } from '$lib/server/oidc';
-import { FLOW_COOKIE, cookieOptions, sessionCookieName, signSession, verifyFlow } from '$lib/server/session';
+import { getConfig } from '#lib/server/runtime.js';
+import { discoverCached, exchangeCode, remoteJwks, verifyIdToken } from '#lib/server/oidc.js';
+import { FLOW_COOKIE, cookieOptions, sessionCookieName, signSession, verifyFlow } from '#lib/server/session.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ cookies, url }) => {

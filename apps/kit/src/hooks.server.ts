@@ -1,7 +1,7 @@
-import type { Handle } from '@sveltejs/kit';
-import { getRuntime } from '$lib/server/runtime';
-import { CF_ACCESS_COOKIE, sessionCookieName } from '$lib/server/session';
-import { buildSources } from '$lib/server/sources';
+import type { Handle } from '@sveltejs/kit/hooks';
+import { getRuntime } from '#lib/server/runtime.js';
+import { CF_ACCESS_COOKIE, sessionCookieName } from '#lib/server/session.js';
+import { buildSources } from '#lib/server/sources.js';
 
 /** Build FlagSource[] for the request. Resolution happens in +layout.server.ts. */
 export const handle: Handle = async ({ event, resolve }) => {

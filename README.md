@@ -38,6 +38,7 @@ untracked denylist appear anywhere.
 nix develop            # node 22, pnpm, dhall, python3, just, gitleaks
 cp .env.example .env   # placeholders; fill in locally, never commit
 just install
+just check             # tsc 7 for flags, svelte-check --tsgo for both apps
 just test              # flags (vitest), kit (vitest), probe (unittest)
 just build             # kit and static
 just acl-check         # render the example policy and run structural checks
@@ -104,9 +105,26 @@ device path; a refused start exits 78. See [probe/README.md](probe/README.md).
 Manifest contracts: Surface v1 is implemented; a production "items" shape is
 documented as **proposed** in [docs/contracts.md](docs/contracts.md).
 
+## Toolchain
+
+Exact pins: SvelteKit 3.0.1, Svelte 5.57.2, Vite 8.3.3, TypeScript 7.0.2,
+vitest 5.0.3, Playwright 1.64.0, on Node 22.17 or later. Other dependencies
+use ranges.
+
+TypeScript 7.0.2 is the `typescript` package and does all type checking:
+`tsc` for `packages/flags` and `svelte-check --tsgo` for the apps. TypeScript 7
+has no in-process compiler API, so the tools that parse TypeScript in-process
+(`svelte-kit sync`, and svelte2tsx inside svelte-check) load Microsoft's
+TypeScript 6 API package `@typescript/typescript6` beside it. `patches/` holds
+the two small patches that make this work (SvelteKit and svelte-check), and
+`.pnpmfile.cjs` points svelte-check's parser at the companion. See
+`patches/README.md` for each patch and its exact gap. The set is shared with
+the estate scaffold; change it there first.
+
 ## CI
 
-`.github/workflows/ci.yml`: install, vitest (flags, kit), probe unittest,
+`.github/workflows/ci.yml`: install, type check (`pnpm -r check`), vitest
+(flags, kit), probe unittest,
 `just acl-check` (dhall and dhall-json release binaries pinned by sha256),
 `docker compose config` for the default and `tagged-identity` profiles, build
 both apps, the Playwright test for the static app (Chromium), gitleaks, denylist
@@ -128,7 +146,7 @@ The registry entry lives in `xoxd-ai/bazel-registry` under
 `strip_prefix` pointing at `packages/flags`:
 
 ```starlark
-bazel_dep(name = "tsidp_flags", version = "0.1.0")
+bazel_dep(name = "tsidp_flags", version = "0.2.0")
 npm_link_package(name = "node_modules/@tsidp-flags/flags", src = "@tsidp_flags//:pkg")
 ```
 
@@ -139,9 +157,9 @@ progressive enhancement only, never an access gate.
 
 - `flake.lock` pins nixpkgs for `nix develop`. Refresh it with `nix flake update`
   in its own PR.
-- `.github/dependabot.yml` opens weekly grouped PRs for the pnpm workspace and
-  for GitHub Actions. SvelteKit and its adapters stay on 2.x, and vitest and
-  TypeScript majors are ignored, so a major move is a deliberate PR.
+- `.github/dependabot.yml` opens one weekly grouped PR for the pnpm workspace
+  and one for GitHub Actions. The exact-pinned stack (see Toolchain) is left
+  out, so a stack move is a deliberate PR.
 - Dependabot security alerts are a repository setting (Settings > Code security).
 
 ## License

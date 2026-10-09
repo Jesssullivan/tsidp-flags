@@ -4,11 +4,42 @@
   "version": "0.0.0",
   "packageManager": "pnpm@10.13.1",
   "engines": {
-    "node": ">=22.12"
+    "node": "^22.17.0 || >=24 <25"
   },
   "scripts": {
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build",
     "check": "pnpm -r --if-present check"
+  },
+  "pnpm": {
+    "overrides": {
+      "cookie@<0.7.0": "0.7.2",
+      "fast-uri": "3.1.2"
+    },
+    "packageExtensions": {
+      "@sveltejs/kit@3.0.1": {
+        "peerDependencies": {
+          "@typescript/typescript6": "^6.0.0"
+        },
+        "peerDependenciesMeta": {
+          "@typescript/typescript6": {
+            "optional": true
+          }
+        }
+      }
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "@sveltejs/kit>typescript": "7"
+      }
+    },
+    "patchedDependencies": {
+      "@sveltejs/kit@3.0.1": "patches/@sveltejs__kit@3.0.1.patch",
+      "devalue@5.9.4": "patches/devalue@5.9.4.patch",
+      "svelte-check@4.7.6": "patches/svelte-check@4.7.6.patch"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
