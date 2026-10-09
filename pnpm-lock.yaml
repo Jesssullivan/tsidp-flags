@@ -20,7 +20,7 @@ patchedDependencies:
     hash: 0856402983a8261d004bdf0d840242d37164311441169dfa7785e16fd57e2339
     path: patches/devalue@5.9.4.patch
   svelte-check@4.7.6:
-    hash: 1963a72e4cd8977392c42141e6372b0baf4f3551eafa25c45a92b83c81aec166
+    hash: cab8a6d93f9fcfa9f1894f20d9a79a9874f02018ad8b22d8e1cdf0c1c94f8c69
     path: patches/svelte-check@4.7.6.patch
 
 importers:
@@ -56,7 +56,7 @@ importers:
         version: 5.57.2
       svelte-check:
         specifier: 4.7.6
-        version: 4.7.6(patch_hash=1963a72e4cd8977392c42141e6372b0baf4f3551eafa25c45a92b83c81aec166)(picomatch@4.0.7)(svelte@5.57.2)
+        version: 4.7.6(patch_hash=cab8a6d93f9fcfa9f1894f20d9a79a9874f02018ad8b22d8e1cdf0c1c94f8c69)(picomatch@4.0.7)(svelte@5.57.2)
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -93,7 +93,7 @@ importers:
         version: 5.57.2
       svelte-check:
         specifier: 4.7.6
-        version: 4.7.6(patch_hash=1963a72e4cd8977392c42141e6372b0baf4f3551eafa25c45a92b83c81aec166)(picomatch@4.0.7)(svelte@5.57.2)
+        version: 4.7.6(patch_hash=cab8a6d93f9fcfa9f1894f20d9a79a9874f02018ad8b22d8e1cdf0c1c94f8c69)(picomatch@4.0.7)(svelte@5.57.2)
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -1173,7 +1173,7 @@ snapshots:
 
   std-env@4.3.0: {}
 
-  svelte-check@4.7.6(patch_hash=1963a72e4cd8977392c42141e6372b0baf4f3551eafa25c45a92b83c81aec166)(picomatch@4.0.7)(svelte@5.57.2):
+  svelte-check@4.7.6(patch_hash=cab8a6d93f9fcfa9f1894f20d9a79a9874f02018ad8b22d8e1cdf0c1c94f8c69)(picomatch@4.0.7)(svelte@5.57.2):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@sveltejs/load-config': 0.2.3

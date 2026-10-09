@@ -27,7 +27,7 @@ Type checking runs on TypeScript 7.0.2 everywhere: `svelte-check --tsgo`
 | Tool | Mechanism | File |
 |---|---|---|
 | `@sveltejs/kit` 3.0.1 | pnpm `patchedDependencies` | `@sveltejs__kit@3.0.1.patch` |
-| `svelte-check` 4.7.6 | pnpm `patchedDependencies` | `svelte-check@4.7.6.patch` |
+| `svelte-check` 4.7.6 (`--tsgo` finds TypeScript 7 as `typescript`; a fresh run clears its stale emit directory) | pnpm `patchedDependencies` | `svelte-check@4.7.6.patch` |
 | `svelte-check` 4.7.6 (in-process parser) | pnpm `readPackage` hook: peer `typescript` becomes a dependency on the companion | `.pnpmfile.cjs` |
 | typescript-eslint 8.71.1 (all `@typescript-eslint/*` that load TS) and `ts-api-utils` | the same hook | `.pnpmfile.cjs` |
 | `@sveltejs/kit` 3.0.1 (companion lookup) | pnpm `packageExtensions`: optional peer `@typescript/typescript6` | `package.json` |
@@ -65,6 +65,11 @@ alias.
   without `include` reports 0 errors (sveltejs/language-tools#3136); the
   scaffold's tsconfig lists `include`, and `//:svelte_check_canary_test`
   proves a seeded error still fails.
+- **Type exports from `.svelte` files.** Under `--tsgo`, a `.svelte` file
+  imported through a package.json `imports` subpath (`#lib/...`) resolves to
+  the ambient `*.svelte` module declaration, so named type exports from
+  `<script module>` are invisible to importers. Export shared types from a
+  `.ts` module instead (the scaffold's `detachable-panel.ts`).
 - **SvelteKit** load-function proxies (automatic types for an unannotated
   `load`) and tsconfig validation need the companion. Without it, the patched
   Kit still writes `$types` and skips only those two steps.

@@ -49,6 +49,23 @@ effect would be a small loader that prefers `typescript` when it has
 `createSourceFile` and otherwise requires `@typescript/typescript6`, with
 `ts-version-check.js` accepting TypeScript 7 when the companion resolves.
 
+## sveltejs/language-tools: `svelte-check --tsgo` stale emit directory
+
+Diff: `sveltejs-language-tools-svelte-check-tsgo-stale-emit.diff`, against
+`packages/svelte-check/src/incremental.ts` at language-tools `af7c6a5` (the
+same code ships in the `svelte-check@4.7.6` bundle).
+
+Problem: a non-incremental `--tsgo` run starts from an empty manifest, so no
+deleted source is ever pruned, but the emit directory
+(`.svelte-kit/.svelte-check/svelte`) is reused. Every file in it is part of the
+overlay program, so the svelte2tsx output of a deleted `.svelte` file is still
+type-checked and reports errors for a file that no longer exists. Found by the
+U4 xoxd.ai lane (a removed `__Canary.svelte` kept failing `check`).
+
+Change: when the manifest has no entries, `emitSvelteFiles` removes the emit
+directory before writing. Incremental runs with a valid manifest are
+unchanged.
+
 ## typescript-eslint: no diff
 
 typescript-eslint 8.71.1 peers `typescript >=4.8.4 <6.1.0` and imports it in
