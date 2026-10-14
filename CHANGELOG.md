@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.0 (2026-10-08)
+## Unreleased
+
+### Changed
+
+- `apps/kit` and `apps/static` pin `@sveltejs/adapter-node` 6.0.0,
+  `@sveltejs/adapter-static` 4.0.0 and `@sveltejs/vite-plugin-svelte` 7.3.1
+  exactly (RU1/RU5 exact-pin rule). The lockfile already resolved these
+  versions, so installed behavior is unchanged. These are app devDependencies:
+  the `tsidp_flags` Bazel module and its 0.2.0 registry entry are unchanged.
+
+## 0.2.0 (2026-10-09)
 
 Toolchain major: SvelteKit 3 and TypeScript 7. The `tsidp_flags` module source
 (`packages/flags/src`) is unchanged. Its exports, its resolution table and
@@ -11,7 +21,10 @@ stack changed.
 
 - Exact pins: `@sveltejs/kit` 3.0.1, `svelte` 5.57.2, `vite` 8.3.3,
   `typescript` 7.0.2, `vitest` 5.0.3, `@playwright/test` 1.64.0.
-  Ranges: `@sveltejs/adapter-node` ^6.0.0, `@sveltejs/adapter-static` ^4.0.0.
+  The v0.2.0 tag left `@sveltejs/adapter-node` ^6.0.0,
+  `@sveltejs/adapter-static` ^4.0.0 and `@sveltejs/vite-plugin-svelte` ^7.3.1
+  as ranges (resolved to 6.0.0, 4.0.0 and 7.3.1); main pins them exactly
+  (see Unreleased).
 - Node 22.17 or later (the SvelteKit 3 minimum).
 - Type checking runs on TypeScript 7: `tsc` for `packages/flags`, and
   `svelte-check --tsgo --fail-on-warnings` for both apps. CI now runs

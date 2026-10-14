@@ -1,4 +1,4 @@
-# TypeScript 7 patch set (RU13)
+# TypeScript 7 patch set (RU13, RU13b)
 
 RU13 (operator ruling, 2026-10-08): the estate runs TypeScript 7.0.2 as the
 `typescript` package together with SvelteKit 3.0.1. There is no fallback to
@@ -51,7 +51,35 @@ see it; the root `typescript` (and every `tsc` binary on the path) stays
 keeps `typescript` pinned at 7.0.2 and forbids the `@typescript/native`
 alias.
 
+The companion is a shim, not a separate parser. `@typescript/typescript6`
+6.0.2 is `module.exports = require("@typescript/old")` with a dependency
+`"@typescript/old": "npm:typescript@^6"`, which both lockfiles resolve to
+`typescript@6.0.3`. So the in-process parser that Kit sync, svelte2tsx and
+typescript-eslint load is TypeScript 6.0.3 code. pnpm links that copy only as
+`@typescript/old` inside the companion; no package resolves it as
+`typescript`, no `tsc` binary on the path is 6.x, and nothing type-checks with
+it.
+
+**RU13b (operator ruling, 2026-10-14) accepts this shape.** TypeScript 7.0.2
+is the `typescript` package and does all type checking.
+`@typescript/typescript6` 6.0.2 (which resolves to `typescript@6.0.3`) is
+allowed only as the in-process parser for Kit sync, svelte2tsx (inside
+svelte-check) and typescript-eslint, until TypeScript 7 ships a JS API.
+Nothing else may load it, and it must never become `typescript` or a `tsc` on
+the path. site.scaffold's `src/lib/house-stack-contract.test.ts` holds both lines: the pins,
+the hook's consumer list, and a lockfile row that allows TypeScript 6 only as
+the companion's own `@typescript/old`. The estate manifest checker (#224)
+reads `package.json` only, so it does not see the hook's rewrite; the
+contract test is the guard for that until the checker allows the companion
+explicitly. Other repos copy this set from site.scaffold.
+
 ## Gaps (exact)
+
+The root gap: TypeScript 7.0.2 has no in-process JS API, so every tool below
+that parses TypeScript in-process runs its parser on the RU13b companion
+(TypeScript 6.0.3 code), while all type checking (`svelte-check --tsgo`,
+`tsc`, rules_ts) runs on TypeScript 7.0.2. Drop the companion, and the hook entries, tool by tool as
+TypeScript 7 ships a JS API or each upstream supports TypeScript 7.
 
 - **typescript-eslint 8.71.1** declares `typescript >=4.8.4 <6.1.0` and imports
   `typescript` in about 180 modules. There is no TypeScript 7 mode, and

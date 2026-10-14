@@ -37,13 +37,13 @@ importers:
         version: 6.2.12
     devDependencies:
       '@sveltejs/adapter-node':
-        specifier: ^6.0.0
+        specifier: 6.0.0
         version: 6.0.0(@sveltejs/kit@3.0.1(patch_hash=c810c90189d973ba981030b1dc1b9adc54d05972baed6464a31cdbcd1f7fff6d)(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.2)(vite@8.3.3(@types/node@22.20.5)))(@typescript/typescript6@6.0.2)(svelte@5.57.2)(typescript@7.0.2)(vite@8.3.3(@types/node@22.20.5)))
       '@sveltejs/kit':
         specifier: 3.0.1
         version: 3.0.1(patch_hash=c810c90189d973ba981030b1dc1b9adc54d05972baed6464a31cdbcd1f7fff6d)(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.2)(vite@8.3.3(@types/node@22.20.5)))(@typescript/typescript6@6.0.2)(svelte@5.57.2)(typescript@7.0.2)(vite@8.3.3(@types/node@22.20.5))
       '@sveltejs/vite-plugin-svelte':
-        specifier: ^7.3.1
+        specifier: 7.3.1
         version: 7.3.1(svelte@5.57.2)(vite@8.3.3(@types/node@22.20.5))
       '@types/node':
         specifier: ^22.20.5
@@ -77,13 +77,13 @@ importers:
         specifier: 1.64.0
         version: 1.64.0
       '@sveltejs/adapter-static':
-        specifier: ^4.0.0
+        specifier: 4.0.0
         version: 4.0.0(@sveltejs/kit@3.0.1(patch_hash=c810c90189d973ba981030b1dc1b9adc54d05972baed6464a31cdbcd1f7fff6d)(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.2)(vite@8.3.3(@types/node@22.20.5)))(@typescript/typescript6@6.0.2)(svelte@5.57.2)(typescript@7.0.2)(vite@8.3.3(@types/node@22.20.5)))
       '@sveltejs/kit':
         specifier: 3.0.1
         version: 3.0.1(patch_hash=c810c90189d973ba981030b1dc1b9adc54d05972baed6464a31cdbcd1f7fff6d)(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.2)(vite@8.3.3(@types/node@22.20.5)))(@typescript/typescript6@6.0.2)(svelte@5.57.2)(typescript@7.0.2)(vite@8.3.3(@types/node@22.20.5))
       '@sveltejs/vite-plugin-svelte':
-        specifier: ^7.3.1
+        specifier: 7.3.1
         version: 7.3.1(svelte@5.57.2)(vite@8.3.3(@types/node@22.20.5))
       '@typescript/typescript6':
         specifier: 6.0.2
