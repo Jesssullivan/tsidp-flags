@@ -1,7 +1,7 @@
 # tsidp_flags (ruling RM11, row TS16). Bazel only.
 #
 #   bazelisk build //:pkg     the npm package a consumer links
-#   bazelisk test //...       the gate
+#   bazelisk test //...       the gate (local, non-qualifying)
 load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
 load("@aspect_rules_js//npm:defs.bzl", "npm_package")
 
