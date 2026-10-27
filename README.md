@@ -139,7 +139,9 @@ check (`DENYLIST` repository secret). Locally: `just test-e2e`.
 npm packages. `MODULE.bazel` is the only version site; the test holds
 `package.json` to it. `.github/workflows/bazel.yml` runs
 `bazelisk mod graph --lockfile_mode=error` and `bazelisk test //...` in
-`packages/flags`.
+`packages/flags`. Both run locally on the hosted runner, so the test is a
+local, non-qualifying check. `packages/flags/.bazelrc` stops an idle Bazel
+server after 120 s.
 
 The registry entry lives in `xoxd-ai/bazel-registry` under
 `modules/tsidp_flags/<version>/`, sourced from a GitHub tag archive with

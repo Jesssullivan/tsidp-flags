@@ -31,11 +31,12 @@ jobs:
           persist-credentials: false
 
       # bazelisk ships on ubuntu-latest and reads packages/flags/.bazelversion.
+      # --version prints the pinned release without starting a Bazel server.
       - name: Bazel version
-        run: bazelisk version
+        run: bazelisk --version
 
       - name: Resolve the module graph against the lockfile
         run: bazelisk mod graph --lockfile_mode=error > /dev/null
 
-      - name: Build //:pkg and run //...
+      - name: Build //:pkg and run //... (local, non-qualifying)
         run: bazelisk test //... --test_output=errors

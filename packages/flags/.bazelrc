@@ -1,0 +1,7 @@
+# Bound the Bazel client server: it idles out after 120 s instead of the
+# 3 h default (ruling R470).
+startup --max_idle_secs=120
+
+# No remote execution lane is attached, so actions run locally. Never fall
+# back from a remote to local actions silently (ruling R471).
+build --remote_local_fallback=false
